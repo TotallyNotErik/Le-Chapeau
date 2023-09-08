@@ -1,7 +1,9 @@
 using System.Collections;
 using UnityEngine;
+using Photon.Pun;
+using Photon.Realtime;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
 {
     [HideInInspector]
     public int id;
@@ -16,7 +18,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Components")]
     public Rigidbody rig;
-    public PlayerController photonPlayer;
+    public Player photonPlayer;
     // Start is called before the first frame update
     void Start()
     {
@@ -26,10 +28,24 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        Move();
+        if (PhotonNetwork.IsMasterClient)
+        {
+            if (curHatTime >= GameManager.instance.timeToWin && !GameManager.instance.gameEnded)
+            {
+                GameManager.instance.gameEnded = true;
+                GameManager.instance.photonView.RPC("WinGame", RpcTarget.All, id);
+            }
+        }
 
-        if (Input.GetKeyDown(KeyCode.Space))
-            TryJump();
+        if (photonView.IsMine)
+        {
+            Move();
+
+            if (Input.GetKeyDown(KeyCode.Space))
+                TryJump();
+            if (hatObject.activeInHierarchy)
+                curHatTime += Time.deltaTime;
+        }
     }
 
     void Move ()
@@ -46,5 +62,49 @@ public class PlayerController : MonoBehaviour
 
         if (Physics.Raycast(ray, 0.7f))
             rig.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+    }
+
+    [PunRPC]
+    public void Initialize (Player player)
+    {
+        photonPlayer = player;
+        id = player.ActorNumber;
+
+        GameManager.instance.players[id - 1] = this;
+
+        //if (photonView.IsMine)
+            //rig.isKinematic = true;
+
+        if (id == 1)
+            GameManager.instance.GiveHat(id, true);
+    }
+
+    public void SetHat (bool hasHat)
+    {
+        hatObject.SetActive(hasHat);
+    }
+    void OnCollisionEnter (Collision collision)
+    {
+        if (!photonView.IsMine)
+            return;
+
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            if(GameManager.instance.GetPlayer(collision.gameObject).id == GameManager.instance.playerWithHat)
+            {
+                if(GameManager.instance.CanGetHat())
+                {
+                    GameManager.instance.photonView.RPC("GiveHat", RpcTarget.All, id, false);
+                }
+            }
+        }
+    }
+
+    public void OnPhotonSerializeView (PhotonStream stream, PhotonMessageInfo info)
+    {
+        if (stream.IsWriting)
+            stream.SendNext(curHatTime);
+        else if (stream.IsReading)
+            curHatTime = (float)stream.ReceiveNext();
     }
 }

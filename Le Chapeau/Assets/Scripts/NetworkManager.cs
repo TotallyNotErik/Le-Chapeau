@@ -14,13 +14,15 @@ public class NetworkManager : MonoBehaviourPunCallbacks
         else
         {
             instance = this;
-            DontDestroyOnLoad(gameObject);
+            //DontDestroyOnLoad(gameObject);
         }
     }
     // Start is called before the first frame update
     void Start()
     {
-        PhotonNetwork.ConnectUsingSettings();
+            PhotonNetwork.ConnectUsingSettings();
+
+
     }
 
     // Update is called once per frame
